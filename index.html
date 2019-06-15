@@ -270,6 +270,109 @@ Oops, that `i < n` should actually be `i <= n`!
 				
 				<section data-markdown data-separator="^\n---\n$" data-separator-vertical="^\n--\n$" data-notes="^Note:">
 					<script type="text/template">
+<img src="external-images/logos/rust-logo-with-text.svg"
+     alt="The logo for the Rust language"
+     style="height: 300px; max-height: 300px"
+     />
+
+- Memory safety
+- Fearless concurrency
+- High performance
+
+--
+
+# Rust: Ownership
+
+- Variable bindings have ownership over the resource they're bound to:
+<br/>
+
+```rust
+fn some_func() {
+    let v = vec![1, 2, 3];
+} // v goes out of scope here
+```
+<br/>
+
+- Assignment of resources *moves* the ownership to the new variable
+
+```rust
+fn take_ownership(v : Vec<i32>) {
+    // Do stuff with v
+} // Resources associated with v can be cleaned up
+
+
+fn main() {
+    let v = vec![1, 2, 3];  // Vector is owned by "v"
+
+    take_ownership(v);      // Vector moves into take_ownership
+
+    println!("{}", v[0]);   // Error: use of moved value `v`
+}
+```
+
+<br/>
+<br/>
+
+```
+error[E0382]: borrow of moved value: `v`
+  --> src/main.rs:11:20
+   |
+7  |     let v = vec![1, 2, 3];  // Vector is owned by "v"
+   |         - move occurs because `v` has type `std::vec::Vec<i32>`, which does not implement the `Copy` trait
+8  |
+9  |     take_ownership(v);      // Vector moves into take_ownership
+   |                    - value moved here
+10 |
+11 |     println!("{}", v[0]);   // Error: use of moved value `v`
+   |                    ^ value borrowed here after move
+```
+<!-- .element: class="fragment" -->
+
+--
+
+# Python: Reference counting
+
+```python
+def take_ownership(v):
+    # Reference count increases by 1
+    ...      # Do stuff with v
+    # Decrease reference count of v by 1
+
+
+def main():
+    v = [1, 2, 3]   # Reference count of v is 1
+
+    take_ownership(v)  # Reference count goes up during function execution
+
+    print(v)        # v still alive to be printed
+```
+
+<br/><br/>
+
+# Rust: Borrowing
+
+```rust
+fn borrow_reference(&v : Vec<i32>) {
+    // Do stuff with v
+}  // v still owned by whoever called borrow_reference
+
+fn main() {
+    v = vec![1, 2, 3];      // v owns vector
+
+    borrow_reference(v);    // borrow_reference gets read-only access to vector
+
+    println!("{}", v[0]);   // v still alive
+}
+```
+
+<br/>
+Zero-cost abstraction: Memory safety is guaranteed at *compile time*.
+
+					</script>
+				</section>
+				
+				<section data-markdown data-separator="^\n---\n$" data-separator-vertical="^\n--\n$" data-notes="^Note:">
+					<script type="text/template">
 # Rust API Bindings: PyO3
 
 ```rust
@@ -504,6 +607,55 @@ ValueError: year 0 is out of range
 ```
 <!-- .element: class="fragment" -->
 
+--
+
+# PyO3: Making a class
+
+```rust
+use pyo3::prelude::*;
+
+#[pyclass]
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+
+#[pymethods]
+impl Point {
+    #[new]
+    fn __new__(obj: &PyRawObject, x: i32, y: i32) -> PyResult<()> {
+        obj.init(|| Point { x: x, y: y })
+    }
+
+    fn norm(&self, py: Python<'_>) -> f64 {
+        ((self.x as f64).powf(2.) + (self.y as f64).powf(2.)).sqrt()
+    }
+}
+```
+
+<br/>
+```rust
+#[pymodule]
+fn classy(_py: Python, m: &PyModule) -> PyResult<()> {
+    m.add_class::<Point>()?;
+
+    Ok(())
+}
+```
+<!-- .element: class="fragment" -->
+<br>
+
+```python
+>>> from pomodule.classy import Point
+>>> p = Point(3, 4)
+>>> p
+<Point object at 0x7f4a27c18270>
+>>> Point(3, 4).norm()
+5.0
+```
+<!-- .element: class="fragment" -->
+
 					</script>
 				</section>
 				
@@ -658,6 +810,70 @@ In [6]: %timeit cython_ext.sieve(100000)
      alt="A person choosing between two apples"
      style="max-height: 750px;"
      />
+
+--
+
+# Speed
+
+<table>
+  <tr>
+    <th>n</th>
+    <th>Python</th>
+    <th>Cython</th>
+    <th>Milksnake</th>
+    <th>PyO3</th>
+    <th>C</th>
+  </tr>
+  <tr>
+    <td>1</td>
+    <td>1200 ns</td>
+    <td>439 ns</td>
+    <td>1700 ns</td>
+    <td>298 ns</td>
+    <td>68 ns</td>
+  </tr>
+  <tr>
+    <td>100</td>
+    <td>12.7 μs</td>
+    <td>2.8 μs</td>
+    <td>3.7 μs</td>
+    <td>1.1 μs</td>
+    <td>0.51 μs</td>
+  </tr>
+  <tr>
+    <td>1000</td>
+    <td>156.8 μs</td>
+    <td>26.7 μs</td>
+    <td>15.4 μs</td>
+    <td>5.8 μs</td>
+    <td>6.1 μs</td>
+  </tr>
+  <tr>
+    <td>100000</td>
+    <td>23.0 ms</td>
+    <td>3.0 ms</td>
+    <td>1.2 ms</td>
+    <td>0.724 ms</td>
+    <td>0.745 ms</td>
+  </tr>
+  <tr>
+    <td>1000000</td>
+    <td>354.8 ms</td>
+    <td>33.0 ms</td>
+    <td>13.0 ms</td>
+    <td>7.8 ms</td>
+    <td>8.6 ms</td>
+  </tr>
+</table>
+
+<br/>
+<br/>
+
+## Caveats
+
+- Not necessarily a representative benchmark
+- Not particularly optimized
+
 
 --
 
