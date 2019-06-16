@@ -527,11 +527,9 @@ pub unsafe fn PyDate_Check(op: *mut PyObject) -> c_int {
 # PyO3: How it works
 
 ## Safe Rust Layer
-
 ```rust
 impl PyDate {
-    pub fn new(py: Python,
-               year: i32, month: u8, day: u8) -> PyResult<Py<PyDate>> {
+    pub fn new<'p>(py: Python<'p>, year: i32, month: u8, day: u8) -> PyResult<&'p PyDate> {
         unsafe {
             let ptr = (PyDateTimeAPI.Date_FromDate)(
                 year,
@@ -539,9 +537,10 @@ impl PyDate {
                 c_int::from(day),
                 PyDateTimeAPI.DateType,
             );
-            Py::from_owned_ptr_or_err(py, ptr)
+            py.from_owned_ptr_or_err(ptr)
         }
     }
+
     ...
 }
 ```
@@ -573,7 +572,7 @@ use pyo3::wrap_pyfunction;
 use date_impl::to_timestamp;
 
 #[pyfunction]
-fn seconds_before(py: Python, d: &PyDate, seconds: i64) -> PyResult<Py<PyDate>> {
+fn seconds_before<'p>(py: Python<'p>, d: &PyDate, seconds: i64) -> PyResult<&'p PyDate> {
     let timestamp = to_timestamp(&d);
 
     PyDate::from_timestamp(py, timestamp - seconds)
@@ -750,8 +749,6 @@ In [6]: %timeit milksnake_back.sieve(100000)
 				
 				<section data-markdown data-separator="^\n---\n$" data-separator-vertical="^\n--\n$" data-notes="^Note:">
 					<script type="text/template">
-# Parting Thoughts
-
 <img src="external-images/could-should.jpg"
      alt="You were so preoccupied with whether or not you could,
           you didn't stop to think if you shold"
@@ -924,6 +921,96 @@ In [6]: %timeit cython_ext.sieve(100000)
 </ul>
 </div>
 </div>
+
+					</script>
+				</section>
+				
+				<section data-markdown data-separator="^\n---\n$" data-separator-vertical="^\n--\n$" data-notes="^Note:">
+					<script type="text/template">
+# Opportunities for Improvement: FFI approach
+<br/>
+```rust
+#[no_mangle]
+pub unsafe extern "C" fn sieve(n: usize, size_out: *mut size_t) -> *mut u32 {
+    let mut s = sieve_impl(n);
+    *size_out = s.len() as size_t;
+    let rv = s.as_mut_ptr();
+    mem::forget(s); // prevent rust from de-allocating this
+    rv
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn deallocate_vec(ptr: *mut u32, len: size_t) {
+    let len = len as usize;
+    drop(Vec::from_raw_parts(ptr, len, len));
+}
+```
+<br/>
+Procedural macro?
+
+```rust
+#[ffi_out]
+fn sieve(n : usize) -> Vec<T> {
+    ...
+}
+```
+
+--
+
+# Opportunities for Improvement: FFI approach
+
+```python
+from msmodule._native import ffi, lib
+
+def sieve(n):
+    l = ffi.new("size_t *")
+
+    # Get a C array of length l
+    arr = lib.sieve(n, l)
+    size = l[0]
+
+    try:
+        out = [arr[i] for i in range(size)]
+    finally:
+        lib.deallocate_vec(arr, size)
+
+    return out
+```
+
+<br/>
+Convenience wrappers?
+<br/>
+
+```python
+def return_list(f):
+    @functools.wraps(f)
+    def wrapper_func(*args):
+        l = ffi.new("size_t *")
+        arr = f(*args, l)
+        size = l[0]
+
+        try:
+            out = [arr[i] for i in range(size)]
+        finally:
+            deallocate_vec(arr, size)
+
+        return out
+    return wrapper_func
+
+sieve = return_list(lib.sieve)
+```
+
+--
+
+# Opportunities for Improvement: PyO3
+<br/>
+<img src="images/pyo3_gh_screenshot.png"
+     alt="Screenshot of PyO3's github"
+     style="max-height: 450px; height: 450px"
+     />
+
+<br/>
+<b>Contributions welcomed:</b>: https://github.com/pyo3/pyo3
 
 					</script>
 				</section>
