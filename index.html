@@ -115,7 +115,7 @@ def sieve(n):
 
 ```
 >>> sieve(5)
-[2, 3, 4, 5]
+[2, 3, 5]
 
 >>> sieve(20)
 [2, 3, 5, 7, 11, 13, 17, 19]
@@ -164,7 +164,7 @@ static PyObject* sieve_impl(PyObject* self, PyObject* max_n) {
     if (rv == NULL) { goto cleanup; }
     PyObject * obj = NULL;
     size_t j = 0;
-    for (size_t i = 0; i <= n; ++i) {
+    for (size_t i = 0; i < n - 1; ++i) {
         if (!sieve[i]) { continue; }
         if ((obj = PyLong_FromLong(sieve[i])) == NULL || // int -> Py int
                    PyList_SetItem(rv, j++, obj)) {       // rv[i] = obj
@@ -180,7 +180,14 @@ cleanup:
 
 Notes:
 
-Here's the same program, written with the C API.
+Here's the same program, written with the C API, obviously it's a lot more complicated,
+and if you look closely, you'll notice that I've had to use a terse programming style
+just to fit it all on one slide.
+
+But the number of lines of code is not as important as the fact that there are a lot
+of details in here that are hard to keep track of - memory, reference counts, error handling.
+
+So why do this, rather than just write the nice, simple Python program?
 
 --
 
@@ -189,7 +196,7 @@ Here's the same program, written with the C API.
 ```
 In [1]: from cmod import ext
 In [2]: import pymod
-In [3]: %timeit ext.sieve(1000000)
+In [3]: %timeit ext.sieve(100000)
 526 µs ± 5.08 µs per loop (mean ± std. dev. of 7 runs, 10000 loops each)
 
 In [4]: %timeit pymod.sieve(100000)
@@ -263,7 +270,7 @@ Out[5]: 35.361216730038024
 
 Notes:
 
-Oops, that `i < n` should actually be `i <= n`!
+Oops, that `i < n` should actually be `i < n - 1`!
 
 					</script>
 				</section>
@@ -278,6 +285,18 @@ Oops, that `i < n` should actually be `i <= n`!
 - Memory safety
 - Fearless concurrency
 - High performance
+- Broad community and open source ecosystem
+
+
+Notes:
+
+This is where Rust comes in, because Rust is a modern systems programming
+language that attempts to build solutions to these and other problems deep
+into the structure of the language. It is a memory safe language that seeks
+to enable fearless concurrency without sacrificing performance. And one thing
+that I think is particularly appealing to those of us from the Python community
+is that it has a high-quality package manager and a huge ecosystem of open
+source packages.
 
 --
 
